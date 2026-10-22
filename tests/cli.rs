@@ -1821,3 +1821,212 @@ fn collect_tags(value: &serde_json::Value) -> Vec<String> {
         _ => Vec::new(),
     }
 }
+
+// ─── Every supported format, through the real binary ────────────────────────
+
+/// One supported layout: the files a project of that shape has, and what
+/// `vump.toml` declares.
+struct FormatCase {
+    /// Named in failure messages.
+    label: &'static str,
+    /// `files = [...]`, in configuration order.
+    declared: &'static [&'static str],
+    /// Files to write, each recording `1.0.0`.
+    contents: &'static [(&'static str, &'static str)],
+}
+
+/// Every format vump recognizes, as a project that has it.
+///
+/// Adding a format means adding a row. The alternative is what this replaced:
+/// building one project per ecosystem by hand and reading the result, which is
+/// neither repeatable nor run on three platforms.
+const FORMAT_CASES: &[FormatCase] = &[
+    FormatCase {
+        label: "plain text",
+        declared: &["VERSION"],
+        contents: &[("VERSION", "1.0.0\n")],
+    },
+    FormatCase {
+        label: "npm manifest",
+        declared: &["package.json"],
+        contents: &[(
+            "package.json",
+            "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\"\n}\n",
+        )],
+    },
+    FormatCase {
+        label: "npm manifest and lock",
+        declared: &["package.json", "package-lock.json"],
+        contents: &[
+            (
+                "package.json",
+                "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\"\n}\n",
+            ),
+            (
+                "package-lock.json",
+                "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"packages\": {\n    \"\": {\n      \"name\": \"demo\",\n      \"version\": \"1.0.0\"\n    }\n  }\n}\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "cargo manifest",
+        declared: &["Cargo.toml"],
+        contents: &[(
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+        )],
+    },
+    FormatCase {
+        label: "cargo manifest and lock",
+        declared: &["Cargo.toml", "Cargo.lock"],
+        contents: &[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+            (
+                "Cargo.lock",
+                "version = 3\n\n[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "python manifest",
+        declared: &["pyproject.toml"],
+        contents: &[(
+            "pyproject.toml",
+            "[project]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+        )],
+    },
+    FormatCase {
+        label: "python manifest and uv lock",
+        declared: &["pyproject.toml", "uv.lock"],
+        contents: &[
+            (
+                "pyproject.toml",
+                "[project]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+            (
+                "uv.lock",
+                "version = 1\nrevision = 3\n\n[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\nsource = { editable = \".\" }\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "msbuild project",
+        declared: &["Demo.csproj"],
+        contents: &[(
+            "Demo.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+    FormatCase {
+        label: "msbuild shared props",
+        declared: &["Directory.Build.props"],
+        contents: &[(
+            "Directory.Build.props",
+            "<Project>\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+    FormatCase {
+        label: "msbuild shared targets",
+        declared: &["Directory.Build.targets"],
+        contents: &[(
+            "Directory.Build.targets",
+            "<Project>\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+];
+
+#[test]
+fn every_supported_format_round_trips_through_the_binary() {
+    for case in FORMAT_CASES {
+        let label = case.label;
+        let declared = case
+            .declared
+            .iter()
+            .map(|f| format!("\"{f}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut fx = Fixture::new().write("vump.toml", &format!("files = [{declared}]\n"));
+        for (name, body) in case.contents {
+            fx = fx.write(name, body);
+        }
+
+        let status = fx.run(&["status"]);
+        assert!(status.code == 0, "{label}: status: {}", status.output());
+        assert!(
+            status.stdout.contains("1.0.0"),
+            "{label}: {}",
+            status.stdout
+        );
+
+        let check = fx.run(&["check", "1.0.0"]);
+        assert_eq!(check.code, 0, "{label}: check: {}", check.output());
+
+        let bump = fx.run(&["patch", "--through", "none"]);
+        assert_eq!(bump.code, 0, "{label}: patch: {}", bump.output());
+
+        // Every declared file moved, not just the first one read.
+        for (name, _) in case.contents {
+            assert!(
+                fx.read(name).contains("1.0.1"),
+                "{label}: {name} still holds the old version:\n{}",
+                fx.read(name),
+            );
+        }
+
+        // `check` is the contract CI depends on, so it is asserted in both
+        // directions: agreeing with the new version and refusing the old. The
+        // code is 4 and not 5 — the files agree with each other and disagree
+        // with the argument, which is a mismatch rather than being out of sync.
+        assert_eq!(
+            fx.run(&["check", "1.0.1"]).code,
+            0,
+            "{label}: check after bump"
+        );
+        assert_eq!(
+            fx.run(&["check", "1.0.0"]).code,
+            4,
+            "{label}: a stale version is a mismatch",
+        );
+    }
+}
+
+#[test]
+fn every_supported_format_reaches_a_pre_release_and_back() {
+    // The pre-release path writes a version that is not three numbers, which
+    // is where a format that cannot hold one shows up — an <AssemblyVersion>
+    // takes four numeric parts and would silently truncate.
+    for case in FORMAT_CASES {
+        let label = case.label;
+        let declared = case
+            .declared
+            .iter()
+            .map(|f| format!("\"{f}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut fx = Fixture::new().write("vump.toml", &format!("files = [{declared}]\n"));
+        for (name, body) in case.contents {
+            fx = fx.write(name, body);
+        }
+
+        let alpha = fx.run(&["alpha", "--toward", "minor", "--through", "none"]);
+        assert_eq!(alpha.code, 0, "{label}: alpha: {}", alpha.output());
+        for (name, _) in case.contents {
+            assert!(
+                fx.read(name).contains("1.1.0-alpha.0"),
+                "{label}: {name}:\n{}",
+                fx.read(name),
+            );
+        }
+
+        let release = fx.run(&["release", "--through", "none"]);
+        assert_eq!(release.code, 0, "{label}: release: {}", release.output());
+        for (name, _) in case.contents {
+            assert!(fx.read(name).contains("1.1.0"), "{label}: {name}");
+        }
+    }
+}
