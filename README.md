@@ -3,6 +3,8 @@
 Keep semver version numbers in sync across the files of a repository, and
 verify in CI that a released tag matches what is recorded in source.
 
+**Website: [vump.codehacks.io](https://vump.codehacks.io)**
+
 A tag that disagrees with the source it claims to describe is a defect. vump
 exists to make that impossible to ship: it moves every version in lockstep, and
 it fails a build before any expensive work is spent on a tag that lies.
