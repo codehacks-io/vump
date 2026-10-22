@@ -48,7 +48,7 @@ jobs:
         with:
           version: ${{ github.ref_name }}
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2
         with:
           # The version comes from website/package.json's packageManager field,
           # so local development and this job cannot drift apart. There is no
