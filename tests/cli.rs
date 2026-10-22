@@ -142,6 +142,46 @@ impl Fixture {
         self
     }
 
+    /// Creates a git repository with an initial commit and a bare remote.
+    ///
+    /// The remote is what makes a push assertable: the test can ask which refs
+    /// actually arrived, rather than trusting that vump named the right one.
+    /// It lives inside the work tree for want of a second directory, so it is
+    /// excluded — otherwise every bump would refuse on a dirty tree.
+    fn with_remote(self) -> Self {
+        let this = self.with_git();
+        std::fs::write(this.dir.path().join(".git/info/exclude"), "remote.git/\n")
+            .expect("cannot write git exclude");
+
+        std::fs::create_dir_all(this.dir.path().join("remote.git"))
+            .expect("cannot create remote directory");
+        let status = Command::new("git")
+            .args(["init", "-q", "--bare", "."])
+            .current_dir(this.dir.path().join("remote.git"))
+            .status()
+            .expect("cannot run git");
+        assert!(status.success(), "git init --bare failed");
+
+        this.git(&["remote", "add", "origin", "remote.git"]);
+        this.git(&["push", "-q", "-u", "origin", "HEAD"]);
+        this
+    }
+
+    /// Tags present on the fixture's remote.
+    fn remote_tags(&self) -> Vec<String> {
+        let out = Command::new("git")
+            .args(["--git-dir=remote.git", "tag"])
+            .current_dir(self.dir.path())
+            .output()
+            .expect("cannot list remote tags");
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+            .collect()
+    }
+
     /// Creates a git repository with an initial commit.
     fn with_git(self) -> Self {
         self.git(&["init", "-q", "."])
@@ -1820,6 +1860,57 @@ fn collect_tags(value: &serde_json::Value) -> Vec<String> {
         serde_json::Value::Array(items) => items.iter().flat_map(collect_tags).collect(),
         _ => Vec::new(),
     }
+}
+
+#[test]
+fn push_sends_one_tag_and_leaves_the_others_local() {
+    // `git push --follow-tags` carries every annotated tag reachable from
+    // HEAD, which in a repository tagging several projects can publish
+    // someone else's release. End to end because the ref list is git's.
+    let fx = Fixture::new()
+        .write(
+            "vump.toml",
+            "files = [\"VERSION\"]\n\n[git]\nthrough = \"tag\"\ntag_pattern = \"api-v{new_version}\"\n",
+        )
+        .write("VERSION", "1.0.0\n")
+        .with_remote();
+    fx.git(&["tag", "-a", "other-project-v9.9.9", "-m", "another release"]);
+
+    let bump = fx.run(&["patch"]);
+    assert_eq!(bump.code, 0, "{}", bump.output());
+    assert!(
+        fx.tags().iter().any(|t| t == "api-v1.0.1"),
+        "{:?}",
+        fx.tags()
+    );
+
+    // The hint printed after tagging is the command being tested.
+    assert!(bump.stdout.contains("vump push"), "{}", bump.stdout);
+
+    let dry = fx.run(&["push", "--dry-run"]);
+    assert_eq!(dry.code, 0, "{}", dry.output());
+    assert!(dry.stdout.contains("api-v1.0.1"), "{}", dry.stdout);
+    assert!(
+        fx.remote_tags().is_empty(),
+        "a dry run pushed: {:?}",
+        fx.remote_tags()
+    );
+
+    let push = fx.run(&["push"]);
+    assert_eq!(push.code, 0, "{}", push.output());
+    assert_eq!(fx.remote_tags(), vec!["api-v1.0.1".to_owned()]);
+}
+
+#[test]
+fn push_refuses_when_no_tag_was_made() {
+    let fx = Fixture::new()
+        .write("vump.toml", "files = [\"VERSION\"]\n")
+        .write("VERSION", "1.0.0\n")
+        .with_remote();
+
+    let run = fx.run(&["push"]);
+    assert_eq!(run.code, 2, "{}", run.output());
+    assert!(run.stderr.contains("no tag"), "{}", run.stderr);
 }
 
 // ─── Every supported format, through the real binary ────────────────────────

@@ -9,6 +9,7 @@ pub mod change;
 pub mod check;
 pub mod guided;
 pub mod init;
+pub mod push;
 pub mod set;
 pub mod status;
 pub mod update;
@@ -167,6 +168,32 @@ pub fn read_project_versions(
     check_declared_locks(fs, root, project, &packages)?;
 
     Ok(versions)
+}
+
+/// The one version every file records, or the disagreement that prevents it.
+///
+/// Returns the evidence rather than an error type: the callers report a
+/// disagreement differently — a bump refuses, a push refuses, `status` renders
+/// it — and the shape of the finding is the only part they share.
+///
+/// # Errors
+///
+/// Returns every file and the version it records when they do not all agree.
+pub fn agreed_version(files: &[FileVersion]) -> Result<Version, Vec<(String, Version)>> {
+    let mut distinct: Vec<&Version> = Vec::new();
+    for file in files {
+        if !distinct.contains(&&file.version) {
+            distinct.push(&file.version);
+        }
+    }
+
+    match distinct.as_slice() {
+        [only] => Ok((*only).clone()),
+        _ => Err(files
+            .iter()
+            .map(|f| (f.path.clone(), f.version.clone()))
+            .collect()),
+    }
 }
 
 /// The package names this project's manifests declare.

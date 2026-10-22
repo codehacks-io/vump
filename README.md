@@ -48,6 +48,7 @@ needs, or it fails saying what is missing.
 | `vump patch\|minor\|major` | Bump a stable version |
 | `vump alpha\|beta\|rc` | Start or advance a pre-release |
 | `vump release` | Drop the pre-release suffix |
+| `vump push` | Push the commit and the one tag a bump already created |
 | `vump set <version>` | Write an exact version to every tracked file |
 | `vump check <version>` | Verify tracked files record this version |
 | `vump status` | Report recorded versions and whether they agree |

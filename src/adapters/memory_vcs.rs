@@ -20,6 +20,8 @@ pub enum VcsCall {
     Commit(String),
     /// A tag was created with this name.
     Tag(String, Option<Annotation>),
+    /// A tag of this name was looked for.
+    HasTag(String),
     /// A push was performed, optionally including this tag.
     Push(Option<String>),
 }
@@ -31,6 +33,7 @@ pub struct MemoryVcs {
     calls: Mutex<Vec<VcsCall>>,
     failing: Mutex<Option<(String, String)>>,
     branch: Mutex<Option<String>>,
+    tags: Mutex<Vec<String>>,
 }
 
 impl Default for MemoryVcs {
@@ -45,6 +48,7 @@ impl Default for MemoryVcs {
             calls: Mutex::default(),
             failing: Mutex::default(),
             branch: Mutex::new(Some("main".to_owned())),
+            tags: Mutex::default(),
         }
     }
 }
@@ -54,6 +58,13 @@ impl MemoryVcs {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Gives the repository these tags, as though they had been created.
+    #[must_use]
+    pub fn with_tags(self, names: &[&str]) -> Self {
+        *lock(&self.tags) = names.iter().map(|n| (*n).to_owned()).collect();
+        self
     }
 
     /// Places `HEAD` on `name`.
@@ -142,6 +153,12 @@ impl Vcs for MemoryVcs {
         self.guard("tag")?;
         self.record(VcsCall::Tag(name.to_owned(), annotation.cloned()));
         Ok(())
+    }
+
+    fn has_tag(&self, name: &str) -> Result<bool, VcsError> {
+        self.record(VcsCall::HasTag(name.to_owned()));
+        self.guard("tag")?;
+        Ok(lock(&self.tags).iter().any(|t| t == name))
     }
 
     fn push(&self, tag: Option<&str>) -> Result<(), VcsError> {
