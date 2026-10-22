@@ -39,22 +39,6 @@ permanently to avoid work that keeps turning out to be small.
 
 What would settle it: a format someone needs that is not worth adding built-in.
 
-### A Rust project in the sandbox
-
-The sandbox covers npm and C#. Rust is missing, and the argument at the time
-was that this repository is itself the Cargo example — it tracks `Cargo.toml`
-and `Cargo.lock` and is exercised on every release.
-
-That argument is weaker than it looked. The repository demonstrates a
-single-crate project only, so the shape actually worth showing by hand — a
-workspace, where the lock holds one entry per member and a project writes only
-the entries its own manifests name — has no worked example anywhere outside the
-test fixtures.
-
-The reason not to rush: a crate inside this repository's tree is not inert the
-way an npm or C# project is. It would need excluding from the workspace, and a
-mistake there breaks `cargo build` for the tool itself.
-
 ### Deciding the bump from commit messages
 
 semantic-release and release-please read Conventional Commits — `feat:`, `fix:`,

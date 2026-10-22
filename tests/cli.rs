@@ -1770,6 +1770,7 @@ fn the_sandbox_projects_stay_usable() {
         "cs/multi-project",
         "cs/shared-version",
         "py/single-project",
+        "rs/workspace",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_vump"))
             .args(["status", "--allow-nested"])
@@ -1806,6 +1807,7 @@ fn no_sandbox_project_can_produce_a_release_shaped_tag() {
         ("cs/multi-project", Some("project-b")),
         ("cs/shared-version", None),
         ("py/single-project", None),
+        ("rs/workspace", None),
     ] {
         // --allow-nested is the point of this test: it asks for the tag a
         // nested configuration would create, precisely to inspect its shape.

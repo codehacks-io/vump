@@ -17,6 +17,7 @@ This is not test coverage. The suite in `tests/` and the fixtures in
 | [`cs/multi-project`](cs/multi-project) | Two C# projects versioned independently |
 | [`cs/shared-version`](cs/shared-version) | An executable and its library on one `Directory.Build.props` |
 | [`py/single-project`](py/single-project) | One Python project, `pyproject.toml` and `uv.lock` together |
+| [`rs/workspace`](rs/workspace) | Two crates sharing one `Cargo.lock`, released together |
 
 ## Git is off, deliberately
 
@@ -98,6 +99,16 @@ For Python, the lock moves with the manifest and needs no network to do it —
 cd sandbox/py/single-project
 vump minor --allow-nested            # pyproject.toml and uv.lock
 uv run python -m demo                # demo 1.1.0
+```
+
+A Cargo workspace shares one lock holding an entry per member, matched by the
+name each manifest declares. Declaring both manifests is what moves them as a
+unit — `--locked` is the check that vump wrote what cargo expects:
+
+```bash
+cd sandbox/rs/workspace
+vump minor --allow-nested            # both manifests and the shared lock
+cargo run --locked --bin sandbox-cli # sandbox-cli 1.1.0
 ```
 
 ## Putting it back
