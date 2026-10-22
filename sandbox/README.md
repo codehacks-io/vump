@@ -111,6 +111,21 @@ vump minor --allow-nested            # both manifests and the shared lock
 cargo run --locked --bin sandbox-cli # sandbox-cli 1.1.0
 ```
 
+## Checking every ecosystem at once
+
+The test suite proves vump writes the bytes it meant to. Only each ecosystem's
+own toolchain can say whether those bytes reach a running program:
+
+```bash
+./scripts/sandbox-smoke.sh
+```
+
+It bumps every project with the vump in this working tree, asks node, dotnet,
+uv and cargo what version they build, and reverts afterwards. A toolchain that
+is not installed is skipped rather than failed. It is deliberately not part of
+`cargo test`, which would need all four on every CI runner to test somebody
+else's tool.
+
 ## Putting it back
 
 Experiments are meant to be thrown away:
