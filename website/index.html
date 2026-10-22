@@ -9,10 +9,10 @@
       name="description"
       content="vump writes your new version into package.json, Cargo.toml, pyproject.toml and their lock files at once — then commits, tags, and verifies the tag in CI."
     />
-    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <link rel="canonical" href="https://vump.codehacks.io/" />
 
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#0c0e12" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)" />
 
@@ -21,34 +21,41 @@
     <meta property="og:title" content="vump — one version, every file, one command" />
     <meta
       property="og:description"
-      content="Keep every version number in a repository in step, and fail the build before a tag that disagrees with its source can cost you anything."
+      content="Bump every file that records your version at once — then commit, tag, and verify the tag in CI."
     />
-    <meta property="og:url" content="%VITE_SITE_URL%/" />
-    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta property="og:url" content="https://vump.codehacks.io/" />
+    <meta property="og:image" content="https://vump.codehacks.io/og.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="vump — one version, every file, one command. A terminal showing a patch bump writing Cargo.toml and Cargo.lock, then tagging v0.2.1."
+    />
+
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="vump — one version, every file, one command" />
     <meta
       name="twitter:description"
-      content="Keep every version number in a repository in step, and fail the build before a tag that disagrees with its source can cost you anything."
+      content="Bump every file that records your version at once — then commit, tag, and verify the tag in CI."
     />
-    <meta name="twitter:image" content="%VITE_SITE_URL%/og.png" />
+    <meta name="twitter:image" content="https://vump.codehacks.io/og.png" />
 
     <script>
-      // Runs before first paint: a theme resolved in React would flash the wrong
-      // one first. An explicit choice wins over the system preference, and dark
-      // is the fallback when neither says anything.
+      // Runs before first paint. The theme resolved in React would flash the
+      // wrong one first, and the .js marker gates the entrance animations so
+      // that a client without scripting gets the prerendered page as it stands.
       (function () {
+        var root = document.documentElement;
+        root.classList.add('js');
         try {
           var stored = localStorage.getItem('vump-theme');
           var system = window.matchMedia('(prefers-color-scheme: light)').matches
             ? 'light'
             : 'dark';
-          document.documentElement.dataset.theme =
-            stored === 'light' || stored === 'dark' ? stored : system;
+          root.dataset.theme = stored === 'light' || stored === 'dark' ? stored : system;
         } catch (_) {
-          document.documentElement.dataset.theme = 'dark';
+          root.dataset.theme = 'dark';
         }
       })();
     </script>
@@ -61,7 +68,7 @@
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "macOS, Linux, Windows",
         "description": "Keep semver version numbers in sync across the files of a repository, and verify in CI that a released tag matches what is recorded in source.",
-        "url": "https://github.com/okcodes/vump",
+        "url": "https://vump.codehacks.io/",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       }
     </script>

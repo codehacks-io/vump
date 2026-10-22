@@ -41,11 +41,28 @@ platform differences, not ordinary mistakes.
 
 ## Releases
 
-vump versions itself with vump.
+vump versions itself with vump, as two projects that ship independently.
 
 ```bash
-vump patch --through push        # or: alpha, beta, rc, release
+vump patch --project main --through push        # or: alpha, beta, rc, release
 ```
+
+| Project | Tracks | Tagged | Ships |
+| --- | --- | --- | --- |
+| `main` | `Cargo.toml`, `Cargo.lock` | `v1.2.3` | The binary: build matrix, signing, checksums, attestation, release |
+| `website` | `website/package.json` | `website-v1.2.3` | [`website/`](website) to GitHub Pages |
+
+The tag shape decides which workflow runs, and `vump check` infers the project
+from it, so neither has to be told `--project`. A copy fix on the landing page
+therefore ships without a vump version — cutting one to deploy the site would
+tell everyone pinning the binary that something changed when nothing did. The
+same separation costs the reverse: a binary release does not redeploy the site,
+so the version the page states lags until the site is released too. See
+[`website/README.md`](website/README.md).
+
+The rest of this section is about the `main` project. The website's number
+answers a narrower question — which build of the page is deployed — and needs
+none of the reasoning below, since nothing resolves it.
 
 ### Choosing the number, while the major is 0
 

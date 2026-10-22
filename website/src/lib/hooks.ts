@@ -51,8 +51,14 @@ export function useInView<T extends HTMLElement>(rootMargin = '0px 0px -10% 0px'
 
 /** Whether the visitor has asked for less motion. */
 export function useReducedMotion() {
+  // Rendered on the server during the prerender step, where there is no
+  // matchMedia. Assuming motion is wanted matches what the client resolves for
+  // almost everyone, and the effect corrects it for the rest before anything
+  // has moved.
   const [reduced, setReduced] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
 
   useEffect(() => {

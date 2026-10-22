@@ -1,0 +1,44 @@
+name: Website
+
+# Runs on changes to the site itself. The Rust suite in test.yml is untouched
+# by a copy edit, and a broken website should be caught in review rather than
+# by a failed deploy.
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+
+jobs:
+  check:
+    name: Typecheck, lint, format, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v2
+        with:
+          # Reads the pnpm version from the site's own package.json; the
+          # repository root has none.
+          package-json-file: website/package.json
+          install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+
+      - name: Install
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      # Everything the deploy will do, plus the checks a deploy is a bad time
+      # to discover.
+      - name: Check
+        working-directory: website
+        run: pnpm run check

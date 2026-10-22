@@ -6,7 +6,7 @@ use crate::app::update::{Release, ReleaseSource, UpdateError, parse_tag};
 use crate::domain::Checksums;
 
 /// Where vump publishes its own binaries.
-const REPOSITORY: &str = "okcodes/vump";
+const REPOSITORY: &str = "codehacks-io/vump";
 
 /// Requests are given a bound so that an unreachable network fails rather than
 /// hanging a command the user is waiting on.

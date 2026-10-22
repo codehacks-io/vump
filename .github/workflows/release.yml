@@ -3,7 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Digit-anchored so a tag that merely starts with v — `voldemort`, a
+      # branch-shaped name — cannot start a release. `website-v*` does not
+      # match either, which is what keeps the two release lines apart.
+      - 'v[0-9]*'
 
 permissions:
   contents: write  # needed to create GitHub releases and upload assets
@@ -16,7 +19,7 @@ jobs:
     name: Verify tag and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -81,7 +84,7 @@ jobs:
             asset: vump-windows-arm64.exe
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -124,7 +127,7 @@ jobs:
       KEYCHAIN_NAME: ci-signing-${{ github.run_id }}.keychain
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download built binaries
         uses: actions/download-artifact@v8

@@ -5,6 +5,7 @@ import { Features } from './components/sections/Features.tsx';
 import { Files } from './components/sections/Files.tsx';
 import { Hero } from './components/sections/Hero.tsx';
 import { Start } from './components/sections/Start.tsx';
+import { VersionBadge } from './components/ui/VersionBadge.tsx';
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
         <Start />
       </main>
       <Footer />
+      <VersionBadge />
     </>
   );
 }

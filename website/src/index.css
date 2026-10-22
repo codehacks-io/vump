@@ -188,8 +188,13 @@
     border-color: var(--line);
   }
 
-  /* Content enters once, on first sight. Nothing moves on the way out. */
-  .reveal {
+  /*
+   * Content enters once, on first sight; nothing moves on the way out. Gated on
+   * the .js class the pre-paint script adds, so the prerendered HTML a no-JS
+   * client or a crawler receives is visible as it stands rather than waiting
+   * for a reveal that will never be triggered.
+   */
+  .js .reveal {
     opacity: 0;
     transform: translateY(14px);
     transition:
@@ -197,13 +202,13 @@
       transform 0.7s var(--ease-out-expo);
   }
 
-  .reveal[data-visible='true'] {
+  .js .reveal[data-visible='true'] {
     opacity: 1;
     transform: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    .js .reveal {
       opacity: 1;
       transform: none;
     }

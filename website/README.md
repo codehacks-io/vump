@@ -1,13 +1,18 @@
 # vump website
 
-The landing page for [vump](https://github.com/okcodes/vump). One page, built
+The landing page for [vump](https://github.com/codehacks-io/vump). One page, built
 to static files and destined for GitHub Pages.
 
 ```bash
 pnpm install
 pnpm dev             # http://localhost:5173
-pnpm check           # typecheck, lint, format, build — what CI will run
+pnpm build && pnpm preview   # the real static output, prerender included
+pnpm check           # typecheck, lint, format, build — what CI runs
 ```
+
+`pnpm dev` never runs the prerender step: `index.html` ships an empty `#root`
+there and the app client-renders into it. To see what a crawler or a scripting-
+disabled browser actually receives, build and preview.
 
 | Script                    | Does                                                          |
 | ------------------------- | ------------------------------------------------------------- |
@@ -81,74 +86,87 @@ codebase rather than because it was inconvenient:
 Everything else — correctness, suspicious, perf and pedantic — is on, and a
 warning fails the run.
 
-## Deploying to GitHub Pages
+## The version the page states
 
-Not wired up yet, deliberately: the domain is not settled, and the base path is
-baked into every asset URL at build time.
+The page says which vump release it describes — in the masthead, and on the
+download button. That value is read at build time from
+[`src/content/release.json`](src/content/release.json), a declared input like
+any other.
 
-Two values decide it, both in `.env`:
+It is not fetched from the GitHub API in the visitor's browser. That call is
+rate-limited to sixty an hour per address, so the version would simply vanish
+for anyone behind a busy NAT, and the page would say different things at
+different moments to different people.
 
-| Variable         | For a custom domain   | For `okcodes.github.io/vump`     |
-| ---------------- | --------------------- | -------------------------------- |
-| `VITE_BASE_PATH` | `/`                   | `/vump/`                         |
-| `VITE_SITE_URL`  | `https://your.domain` | `https://okcodes.github.io/vump` |
+It is not read from `Cargo.toml` either, tempting as that is. `Cargo.toml`
+holds the version most recently bumped, which is not the same as the version
+most recently _published_ — a bump that has been tagged locally but not pushed
+leaves it describing a release that does not exist, with no binaries behind the
+download button.
 
-A custom domain also needs `public/CNAME` holding the bare hostname, which ships
-to `dist/` untouched. `public/.nojekyll` is already there, so Pages serves the
-build as-is instead of running it through Jekyll.
+Pointing the site at a newer release is deliberate and offline — the script
+reads the repository's own tags and skips pre-releases, since the button beside
+the number hands over the newest stable:
 
-When the domain is decided, add `.github/workflows/website.yml`:
-
-```yaml
-name: website
-
-on:
-  push:
-    branches: [main]
-    paths: ['website/**', '.github/workflows/website.yml']
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: website/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: website/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
+```bash
+pnpm bump:vump          # newest stable tag
+pnpm bump:vump 0.6.2    # a specific one
 ```
 
-Then set Pages → Source → GitHub Actions in the repository settings.
+Commit the change like any other, then cut a website release to deploy it.
 
-The site is not versioned and vump does not track its `package.json`, which
-declares no version at all. It ships when `main` moves, not when a tag does.
+## Two release lines
+
+The binary and the website ship independently, as two vump projects declared in
+the repository's [`vump.toml`](../vump.toml):
+
+| Project   | Tracks                     | Tagged           | Workflow                                                |
+| --------- | -------------------------- | ---------------- | ------------------------------------------------------- |
+| `main`    | `Cargo.toml`, `Cargo.lock` | `v1.2.3`         | `release.yml` — builds, signs and publishes the binary  |
+| `website` | `website/package.json`     | `website-v1.2.3` | `release-website.yml` — deploys this directory to Pages |
+
+Each tag shape triggers exactly one of them, and `vump check` infers which
+project a pushed tag describes from its shape, so neither workflow has to name
+`--project`. Shipping a site-only change is:
+
+```bash
+vump patch --project website --through push
+```
+
+No vump version, no release notes, nothing said to anyone pinning the binary.
+
+The reverse holds too: releasing the binary does not redeploy the site. So the
+version the page states can lag a release until the site is deployed again,
+which is the deliberate cost of not having one tag do two unrelated things.
+
+## Deployment
+
+`release-website.yml` builds this directory and publishes `dist/` to GitHub
+Pages, gated on `vump check` agreeing that the tag matches
+`website/package.json`. The build receives `VITE_WEBSITE_BUILD_SHA`, which is
+what the badge in the corner of the page reports alongside the site's version —
+a bug report is a screenshot, and that is the pair needed to know which build
+it came from.
+
+The install step is `pnpm install --frozen-lockfile`: the committed
+`pnpm-lock.yaml` is the deploy's declared input, so nothing is resolved or
+discovered at deploy time and a rebuild of the same commit produces the same
+bytes.
+
+Served from **vump.codehacks.io**, configured in the repository's Pages
+settings rather than by a `CNAME` file — a workflow-based deploy does not need
+one. The site is therefore always at the root, which is why there is no Vite
+`base` path here; a bare `github.io/<repo>/` project page would need one.
+
+## Prerendering
+
+`dist/index.html` ships with the page already rendered into it. `vite build`
+produces the client bundle, a second pass builds `src/entry-server.tsx` to
+`dist-ssr/`, and `scripts/prerender.mjs` inlines that HTML into `#root` and
+deletes the intermediate. `src/main.tsx` hydrates when `#root` already has
+children and renders normally when it does not, which is what `pnpm dev`
+serves.
+
+The entrance animations are gated on a `js` class the pre-paint script adds, so
+a client that never runs the script sees the prerendered page as it stands
+rather than a blank one waiting for a reveal that will never come.

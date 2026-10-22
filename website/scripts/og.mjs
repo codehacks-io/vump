@@ -99,7 +99,7 @@ const card = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" 
 
   <line x1="72" y1="566" x2="1128" y2="566" stroke="#ffffff" stroke-opacity="0.1" />
   <text x="72" y="596" font-family="JetBrains Mono" font-size="17" fill="${FAINT}"
-        letter-spacing="1.4">GITHUB.COM/OKCODES/VUMP</text>
+        letter-spacing="1.4">VUMP.CODEHACKS.IO</text>
 
   <g transform="translate(716 168)">
     <rect width="412" height="300" rx="14" fill="${PANE}" stroke="#ffffff" stroke-opacity="0.1" />

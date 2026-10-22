@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: okcodes/vump/.github/actions/check@main
+      - uses: codehacks-io/vump/.github/actions/check@main
         with:
           version: \${{ github.ref_name }}
 

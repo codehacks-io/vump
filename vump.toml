@@ -1,20 +1,17 @@
-# vump's own configuration.
+# Two independently-versioned projects, told apart by the shape of their tag.
 #
-# Cargo.toml is the single source of truth for this project's version: the
-# binary reads it at compile time via CARGO_PKG_VERSION, and CI verifies that
-# every released tag matches it before building or publishing anything.
-#
-# Cargo.lock records that version too, and release builds run --locked, so it
-# moves in the same commit rather than being left for a follow-up.
-
-files = ["Cargo.toml", "Cargo.lock"]
+# The binary and the website ship on their own schedules: a copy fix on the
+# landing page has nothing in it for someone running vump, and cutting a
+# release to deploy one would tell every consumer a new version exists when
+# none does. Each tag shape triggers its own workflow, and a single
+# `vump check ${{ github.ref_name }}` in CI infers which project a pushed tag
+# describes without being told --project.
 
 [git]
 # Stops short of pushing: the commit and tag are local and undoable, whereas a
-# pushed tag starts the release workflow. `--through push` when that is wanted.
+# pushed tag starts a release. `--through push` when that is wanted.
 through = "tag"
-commit_message = "chore: bump version to v{new_version}"
-tag_pattern = "v{new_version}"
+commit_message = "chore: bump {project} to v{new_version}"
 
 # Stable releases come from main, which is where every one of them has been cut.
 # The accident this prevents: merging a pull request, staying on its now-deleted
@@ -24,3 +21,20 @@ release_branches = ["main"]
 # prerelease_branches is deliberately unset. Alphas here are cut from the branch
 # doing the work — that is how every one so far has been made — and constraining
 # them would mean merging before they could be shared.
+
+# Cargo.toml is the single source of truth for the binary's version: it is read
+# at compile time via CARGO_PKG_VERSION, and CI verifies that every released tag
+# matches it before building or publishing anything. Cargo.lock records that
+# version too, and release builds run --locked, so it moves in the same commit
+# rather than being left for a follow-up.
+[[project]]
+name = "main"
+files = ["Cargo.toml", "Cargo.lock"]
+tag_pattern = "v{new_version}"
+
+# The website's version is what its deployed build reports in the corner, and
+# what `vump check` verifies a website-v* tag against before Pages is touched.
+[[project]]
+name = "website"
+files = ["website/package.json"]
+tag_pattern = "website-v{new_version}"

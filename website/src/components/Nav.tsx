@@ -1,7 +1,6 @@
-import { links } from '../content/links.ts';
+import { links, VUMP_VERSION } from '../content/links.ts';
 import { cn } from '../lib/cn.ts';
 import { useScrolled } from '../lib/hooks.ts';
-import { useLatestRelease } from '../lib/release.ts';
 import { GitHubIcon, Mark } from './ui/icons.tsx';
 import { ThemeToggle } from './ui/ThemeToggle.tsx';
 
@@ -12,21 +11,24 @@ const SECTIONS = [
   { href: '#start', label: 'Quick start' },
 ];
 
+/**
+ * The release the site describes, resolved at build time.
+ *
+ * Asking GitHub for it from the visitor's browser would put an unauthenticated
+ * API call on every page load — rate-limited to 60 an hour per address, so the
+ * chip would simply vanish for anyone behind a busy NAT — and would make the
+ * page say different things at different moments. The version is a declared
+ * input instead: see scripts/vump-version.mjs.
+ */
 function ReleaseChip() {
-  const release = useLatestRelease();
-  if (!release) return null;
-
   return (
     <a
-      href={release.url}
+      href={links.release}
       target="_blank"
       rel="noreferrer noopener"
-      title="The newest published release, read from GitHub as this page loaded"
       className="border-line text-muted hover:border-line-strong hover:text-ink hidden items-center gap-2 rounded-full border px-3 py-1 font-mono text-[11px] transition-colors sm:inline-flex"
     >
-      <span className="bg-signal h-1.5 w-1.5 rounded-full" aria-hidden />
-      {release.version}
-      {release.prerelease ? <span className="text-faint">pre</span> : null}
+      <span className="bg-signal h-1.5 w-1.5 rounded-full" aria-hidden />v{VUMP_VERSION}
     </a>
   );
 }

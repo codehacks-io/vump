@@ -1,31 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-
-export type Theme = 'dark' | 'light';
+/**
+ * The theme lives on the document element, not in React state.
+ *
+ * A script in index.html resolves it before first paint, which is what keeps
+ * the page from flashing the wrong one. Mirroring that into state would give
+ * the server-rendered HTML a theme it cannot know and make hydration disagree
+ * with what is already on screen; reading the attribute at the moment of the
+ * click cannot drift from it.
+ */
 
 const KEY = 'vump-theme';
 
-function current(): Theme {
-  return document.documentElement.dataset['theme'] === 'light' ? 'light' : 'dark';
-}
+export function toggleTheme() {
+  const root = document.documentElement;
+  const next = root.dataset['theme'] === 'light' ? 'dark' : 'light';
+  root.dataset['theme'] = next;
 
-/**
- * Reads the theme the pre-paint script in `index.html` already resolved, and
- * writes any change back to it. The stored value is a deliberate choice, so it
- * outranks the system preference from then on.
- */
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(current);
-
-  useEffect(() => {
-    document.documentElement.dataset['theme'] = theme;
-    try {
-      localStorage.setItem(KEY, theme);
-    } catch {
-      // A browser refusing storage is not a reason to refuse the theme.
-    }
-  }, [theme]);
-
-  const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), []);
-
-  return { theme, toggle };
+  try {
+    localStorage.setItem(KEY, next);
+  } catch {
+    // A browser refusing storage is not a reason to refuse the theme.
+  }
 }

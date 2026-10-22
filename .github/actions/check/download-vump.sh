@@ -29,7 +29,7 @@ else
 fi
 
 if [[ "$VUMP_VERSION_INPUT" == "latest" ]]; then
-  TAG=$(curl -fsSL https://api.github.com/repos/okcodes/vump/releases/latest \
+  TAG=$(curl -fsSL https://api.github.com/repos/codehacks-io/vump/releases/latest \
         | grep '"tag_name"' | head -1 | cut -d'"' -f4)
 else
   TAG="$VUMP_VERSION_INPUT"
@@ -37,7 +37,7 @@ fi
 
 DEST="${RUNNER_TEMP}/vump-${TAG}"
 SUMS="${RUNNER_TEMP}/vump-${TAG}.SHA256SUMS"
-BASE="https://github.com/okcodes/vump/releases/download/${TAG}"
+BASE="https://github.com/codehacks-io/vump/releases/download/${TAG}"
 
 echo "Downloading vump ${TAG} (${BINARY}) → ${DEST}"
 curl -fsSLo "$DEST" "${BASE}/${BINARY}"

@@ -9,7 +9,7 @@ it fails a build before any expensive work is spent on a tag that lies.
 
 ## Install
 
-Download a binary from [Releases](https://github.com/okcodes/vump/releases),
+Download a binary from [Releases](https://github.com/codehacks-io/vump/releases),
 or build from source:
 
 ```bash
@@ -204,7 +204,7 @@ A tag then identifies its own project, so CI can pass the pushed tag straight
 through without knowing which project it names:
 
 ```yaml
-- uses: okcodes/vump/.github/actions/check@main
+- uses: codehacks-io/vump/.github/actions/check@main
   with:
     version: ${{ github.ref_name }}     # api-v1.2.3 checks the api project
 ```
@@ -364,7 +364,7 @@ The composite action downloads vump and checks the tag against source. Put it
 first, so a bad tag costs nothing:
 
 ```yaml
-- uses: okcodes/vump/.github/actions/check@main
+- uses: codehacks-io/vump/.github/actions/check@main
   with:
     version: ${{ github.ref_name }}
 ```

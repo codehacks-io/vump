@@ -1,4 +1,4 @@
-import { links } from '../../content/links.ts';
+import { links, VUMP_VERSION } from '../../content/links.ts';
 import { initRun } from '../../content/runs.ts';
 import { Button } from '../ui/Button.tsx';
 import { Code } from '../ui/Code.tsx';
@@ -6,7 +6,7 @@ import { ArrowIcon } from '../ui/icons.tsx';
 import { Reveal } from '../ui/Reveal.tsx';
 import { Terminal } from '../ui/Terminal.tsx';
 
-const SOURCE = `git clone https://github.com/okcodes/vump
+const SOURCE = `git clone https://github.com/codehacks-io/vump
 cd vump && cargo install --path .`;
 
 export function Start() {
@@ -35,8 +35,13 @@ export function Start() {
               <p className="text-muted mt-3 mb-5 text-[15px] leading-relaxed">
                 Grab a binary for your platform, or build it from source.
               </p>
-              <Button href={links.releases} variant="outline" external className="mb-4 self-start">
-                Download
+              <Button
+                href={links.latestRelease}
+                variant="outline"
+                external
+                className="mb-4 self-start"
+              >
+                Download v{VUMP_VERSION}
                 <ArrowIcon className="opacity-60" />
               </Button>
               <Code code={SOURCE} lang="bash" />

@@ -718,7 +718,7 @@ Rules that keep the boundaries real:
   of band cannot carry a valid one, and there is no long-lived key to store,
   rotate or leak.
 
-  Anyone can verify one — `gh attestation verify <file> --repo okcodes/vump` —
+  Anyone can verify one — `gh attestation verify <file> --repo codehacks-io/vump` —
   but the tooling enforces checksums instead, for the portability reason in
   [`BACKLOG.md`](BACKLOG.md).
 
