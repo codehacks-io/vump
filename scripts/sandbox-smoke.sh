@@ -19,6 +19,16 @@ VUMP="$ROOT/target/debug/vump"
 FAILED=()
 SKIPPED=()
 
+# Bumping the sandbox dirties it, so the script reverts what it did on the way
+# out. That is a destructive git command in a real repository, so it refuses to
+# start where there is anything there it might throw away.
+if [ -n "$(git status --porcelain sandbox/)" ]; then
+  echo "sandbox/ has uncommitted changes, and this script reverts sandbox/ when"
+  echo "it finishes. Commit or stash them first:"
+  git status --short sandbox/ | sed 's/^/  /'
+  exit 1
+fi
+
 cleanup() {
   git checkout -- sandbox 2>/dev/null
 }
