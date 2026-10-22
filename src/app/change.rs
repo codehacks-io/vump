@@ -1031,7 +1031,7 @@ mod tests {
         assert_eq!(fs.get("/repo/VERSION").as_deref(), Some("1.3.0\n"));
         assert!(fs.get("/repo/Cargo.toml").unwrap().contains("1.3.0"));
         // With no git intent, the repository is untouched.
-        assert!(vcs.calls().is_empty());
+        assert_eq!(vcs.calls(), Vec::new());
     }
 
     #[test]

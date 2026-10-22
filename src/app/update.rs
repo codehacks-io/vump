@@ -597,7 +597,7 @@ mod tests {
                 latest: v("1.1.0"),
             }
         );
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     #[test]
@@ -666,7 +666,7 @@ mod tests {
                 latest: v("1.0.0"),
             }
         );
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     #[test]
@@ -729,7 +729,7 @@ mod tests {
                 current: v("1.0.0")
             }
         );
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     #[test]
@@ -748,7 +748,7 @@ mod tests {
             panic!("expected NoSuchRelease, got {err:?}");
         };
         assert!(available.contains("1.1.0"), "{available}");
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     #[test]
@@ -782,7 +782,7 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, UpdateError::Unverifiable { .. }));
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     #[test]
@@ -809,7 +809,7 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, UpdateError::UnsupportedPlatform { .. }));
-        assert!(source.installs().is_empty());
+        assert_eq!(source.installs(), Vec::<String>::new());
     }
 
     // ─── list ────────────────────────────────────────────────────────────────

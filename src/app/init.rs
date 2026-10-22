@@ -275,7 +275,7 @@ mod tests {
             .with_file("/repo/pyproject.toml", "")
             .with_file("/repo/README.md", "");
 
-        assert!(discover(&fs, root()).is_empty());
+        assert_eq!(discover(&fs, root()), Vec::<String>::new());
     }
 
     #[test]
