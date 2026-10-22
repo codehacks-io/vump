@@ -1,6 +1,6 @@
 [package]
 name = "vump"
-version = "0.8.0-alpha.0"
+version = "0.8.0-alpha.1"
 edition = "2024"
 rust-version = "1.85"
 description = "Keep semver version numbers in sync across a repository, and verify them in CI"
