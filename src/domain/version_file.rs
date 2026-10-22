@@ -346,9 +346,7 @@ impl LockFile {
         let raw = match self {
             Self::Cargo => read_cargo_lock_version(file, contents, packages, is_cargo_local)?,
             Self::Uv => read_cargo_lock_version(file, contents, packages, is_uv_local)?,
-            // An npm lock records only the root package until npm workspaces
-            // are supported, so there is nothing yet for `packages` to select.
-            Self::Npm => read_package_lock_version(file, contents)?,
+            Self::Npm => read_package_lock_version(file, contents, packages)?,
         };
 
         parse_version(file, self.field_description(), &raw)
@@ -373,7 +371,7 @@ impl LockFile {
                 write_cargo_lock_version(file, contents, version, packages, is_cargo_local)
             }
             Self::Uv => write_cargo_lock_version(file, contents, version, packages, is_uv_local),
-            Self::Npm => write_package_lock_version(file, contents, version),
+            Self::Npm => write_package_lock_version(file, contents, version, packages),
         }
     }
 }
@@ -649,6 +647,20 @@ fn write_pyproject_version(
     Ok(doc.to_string())
 }
 
+/// Reads the package name an npm manifest declares.
+///
+/// This is what pairs a manifest with its entry in a workspace lock, exactly
+/// as [`cargo_package_name`] does for Cargo. A lock keys its entries by path
+/// and records the name inside each, so the name is still what matches.
+#[must_use]
+pub fn package_json_name(contents: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(contents)
+        .ok()?
+        .get("name")?
+        .as_str()
+        .map(str::to_owned)
+}
+
 /// Reads the package name a Python manifest declares.
 ///
 /// This is what pairs a manifest with its entry in a shared uv workspace lock,
@@ -712,29 +724,100 @@ fn write_cargo_version(
 /// The path to the root package's entry, from lockfile version 2 onwards.
 const NPM_ROOT_PACKAGE: &[&str] = &["packages", ""];
 
-/// Reads the version an npm lock file records for the project itself.
-fn read_package_lock_version(file: &str, contents: &str) -> Result<String, VersionFileError> {
-    let root = find_json_version(contents, &[]).ok_or_else(|| VersionFileError::MissingField {
-        file: file.to_owned(),
-        field: "\"version\"".to_owned(),
-    })?;
-    let root = &contents[root];
+/// The spans an npm lock records this project's version in.
+///
+/// A lock keys its `packages` map by path — `"packages/api"` — and records the
+/// name inside each entry, so a member is selected by the name its manifest
+/// declares, as in every other lock. The root is the entry keyed `""`, which
+/// the top-level `version` restates; both belong to the project only when the
+/// lock's own name is one the project declares, which is what keeps a
+/// workspace member from rewriting the root it sits under.
+fn npm_version_spans(
+    file: &str,
+    contents: &str,
+    packages: &[String],
+) -> Result<Vec<Range<usize>>, VersionFileError> {
+    let doc: serde_json::Value =
+        serde_json::from_str(contents).map_err(|e| VersionFileError::Malformed {
+            file: file.to_owned(),
+            format: "JSON".to_owned(),
+            detail: e.to_string(),
+        })?;
 
-    // Version 1 has no `packages` map. Where one exists both records describe
-    // the same project, so a disagreement is a corrupt file rather than a
-    // question to answer by preferring one of them.
-    if let Some(nested) = find_json_version(contents, NPM_ROOT_PACKAGE) {
-        let nested = &contents[nested];
-        if nested != root {
-            return Err(VersionFileError::InconsistentLock {
-                file: file.to_owned(),
-                root: root.to_owned(),
-                nested: nested.to_owned(),
-            });
+    let declares = |name: Option<&str>| name.is_some_and(|n| packages.contains(&n.to_owned()));
+    let entries = doc.get("packages").and_then(serde_json::Value::as_object);
+
+    // Nothing to match against, and nothing to confuse it with: a lock with no
+    // `packages` map describes one project, and so does one declared without
+    // the manifest that would name it.
+    let root_only = entries.is_none() || packages.is_empty();
+    let root = root_only
+        || declares(doc.get("name").and_then(serde_json::Value::as_str))
+        || entries.is_some_and(|map| {
+            map.get("")
+                .is_some_and(|e| declares(e.get("name").and_then(serde_json::Value::as_str)))
+        });
+
+    let mut spans = Vec::new();
+    if root {
+        if let Some(span) = find_json_version(contents, &[]) {
+            spans.push(span);
+        }
+        if let Some(span) = find_json_version(contents, NPM_ROOT_PACKAGE) {
+            spans.push(span);
         }
     }
 
-    Ok(root.to_owned())
+    if !root_only {
+        for key in entries.into_iter().flatten().filter_map(|(key, entry)| {
+            let named = declares(entry.get("name").and_then(serde_json::Value::as_str));
+            (!key.is_empty() && named && entry.get("version").is_some()).then_some(key)
+        }) {
+            if let Some(span) = find_json_version(contents, &["packages", key]) {
+                spans.push(span);
+            }
+        }
+    }
+
+    if spans.is_empty() {
+        return Err(VersionFileError::MissingField {
+            file: file.to_owned(),
+            field: if packages.is_empty() {
+                "\"version\"".to_owned()
+            } else {
+                format!("an entry for {}", packages.join(" or "))
+            },
+        });
+    }
+
+    Ok(spans)
+}
+
+/// Reads the version an npm lock file records for the project.
+fn read_package_lock_version(
+    file: &str,
+    contents: &str,
+    packages: &[String],
+) -> Result<String, VersionFileError> {
+    let spans = npm_version_spans(file, contents, packages)?;
+
+    // Every place in scope describes the same project moving as a unit, so a
+    // disagreement is a corrupt file rather than a question to answer by
+    // preferring one of them.
+    let first = contents[spans[0].clone()].to_owned();
+    if let Some(other) = spans
+        .iter()
+        .map(|span| &contents[span.clone()])
+        .find(|v| *v != first)
+    {
+        return Err(VersionFileError::InconsistentLock {
+            file: file.to_owned(),
+            root: first,
+            nested: other.to_owned(),
+        });
+    }
+
+    Ok(first)
 }
 
 /// Rewrites every place an npm lock file records the project's own version.
@@ -742,21 +825,13 @@ fn write_package_lock_version(
     file: &str,
     contents: &str,
     version: &Version,
+    packages: &[String],
 ) -> Result<String, VersionFileError> {
-    // Reading first rejects a lock with no version, or with two that already
-    // disagree, before any mutation is attempted.
-    read_package_lock_version(file, contents)?;
+    // Reading first rejects a lock with no version in scope, or with two that
+    // already disagree, before any mutation is attempted.
+    read_package_lock_version(file, contents, packages)?;
 
-    let mut spans =
-        vec![
-            find_json_version(contents, &[]).ok_or_else(|| VersionFileError::MissingField {
-                file: file.to_owned(),
-                field: "\"version\"".to_owned(),
-            })?,
-        ];
-    if let Some(nested) = find_json_version(contents, NPM_ROOT_PACKAGE) {
-        spans.push(nested);
-    }
+    let mut spans = npm_version_spans(file, contents, packages)?;
 
     // Splicing from the end keeps the earlier spans' offsets valid.
     spans.sort_by_key(|span| std::cmp::Reverse(span.start));
@@ -1320,6 +1395,84 @@ serde = \"1\"
         assert!(
             matches!(err, VersionFileError::AmbiguousField { .. }),
             "got {err:?}"
+        );
+    }
+
+    /// A root at 1.0.0 with one member at 2.5.0, as `npm install` writes it.
+    const NPM_WORKSPACE: &str = r#"{
+  "name": "root",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": { "name": "root", "version": "1.0.0" },
+    "node_modules/@acme/api": { "resolved": "packages/api", "link": true },
+    "packages/api": { "name": "@acme/api", "version": "2.5.0" }
+  }
+}
+"#;
+
+    #[test]
+    fn an_npm_workspace_member_is_selected_by_name() {
+        // The lock keys entries by path, so the member is found by the name
+        // recorded inside its entry. Reading the root instead reported a
+        // disagreement between files that agree.
+        let api = names(&["@acme/api"]);
+        assert_eq!(
+            LockFile::Npm
+                .read("package-lock.json", NPM_WORKSPACE, &api)
+                .unwrap(),
+            v("2.5.0")
+        );
+
+        let out = LockFile::Npm
+            .write("package-lock.json", NPM_WORKSPACE, &v("2.5.1"), &api)
+            .unwrap();
+        assert!(
+            out.contains(r#""name": "@acme/api", "version": "2.5.1""#),
+            "{out}"
+        );
+        // The root sits above this member and is not its to move.
+        assert!(
+            out.contains(r#""name": "root", "version": "1.0.0""#),
+            "{out}"
+        );
+        assert!(out.contains(r#""version": "1.0.0","#), "{out}");
+    }
+
+    #[test]
+    fn the_root_of_an_npm_workspace_leaves_its_members_alone() {
+        let root = names(&["root"]);
+        assert_eq!(
+            LockFile::Npm
+                .read("package-lock.json", NPM_WORKSPACE, &root)
+                .unwrap(),
+            v("1.0.0")
+        );
+
+        let out = LockFile::Npm
+            .write("package-lock.json", NPM_WORKSPACE, &v("1.1.0"), &root)
+            .unwrap();
+        assert!(
+            out.contains(r#""name": "root", "version": "1.1.0""#),
+            "{out}"
+        );
+        assert!(out.contains(r#""version": "1.1.0","#), "{out}");
+        assert!(
+            out.contains(r#""name": "@acme/api", "version": "2.5.0""#),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_name_no_entry_declares_is_refused_rather_than_falling_back() {
+        // Falling back to the root here is the defect this replaced: it would
+        // answer about a different package than the one asked for.
+        let err = LockFile::Npm
+            .read("package-lock.json", NPM_WORKSPACE, &names(&["@acme/nope"]))
+            .unwrap_err();
+        assert!(
+            matches!(err, VersionFileError::MissingField { .. }),
+            "{err:?}"
         );
     }
 

@@ -1995,6 +1995,42 @@ fn every_supported_format_round_trips_through_the_binary() {
 }
 
 #[test]
+fn an_npm_workspace_member_bumps_without_touching_the_root() {
+    // The lock keys its entries by path and the member's name lives inside the
+    // entry, so reading the root instead reported two files as disagreeing
+    // when they agreed. Asserted end to end because the pairing runs in the
+    // app layer, not in the format.
+    let fx = Fixture::new()
+        .write(
+            "vump.toml",
+            "[[project]]\nname = \"api\"\nfiles = [\"packages/api/package.json\", \"package-lock.json\"]\n",
+        )
+        .write(
+            "packages/api/package.json",
+            "{\n  \"name\": \"@acme/api\",\n  \"version\": \"2.5.0\"\n}\n",
+        )
+        .write(
+            "package-lock.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"packages\": {\n    \"\": { \"name\": \"root\", \"version\": \"1.0.0\" },\n    \"packages/api\": { \"name\": \"@acme/api\", \"version\": \"2.5.0\" }\n  }\n}\n",
+        );
+
+    let status = fx.run(&["status"]);
+    assert_eq!(status.code, 0, "{}", status.output());
+    assert!(status.stdout.contains("2.5.0"), "{}", status.stdout);
+
+    let bump = fx.run(&["patch", "--through", "none"]);
+    assert_eq!(bump.code, 0, "{}", bump.output());
+
+    let lock = fx.read("package-lock.json");
+    assert!(
+        lock.contains("\"@acme/api\", \"version\": \"2.5.1\""),
+        "{lock}"
+    );
+    assert!(lock.contains("\"root\", \"version\": \"1.0.0\""), "{lock}");
+    assert_eq!(fx.run(&["check", "2.5.1"]).code, 0);
+}
+
+#[test]
 fn every_supported_format_reaches_a_pre_release_and_back() {
     // The pre-release path writes a version that is not three numbers, which
     // is where a format that cannot hold one shows up — an <AssemblyVersion>

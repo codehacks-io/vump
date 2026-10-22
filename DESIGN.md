@@ -150,6 +150,13 @@ In `Cargo.lock` the entries that belong to the repository are the
 everything it fetched. A single-crate repository has one, and it needs no
 naming.
 
+`package-lock.json` keys its entries by *path* rather than by name — the root
+is `""` and a member is `"packages/api"` — but records the name inside each
+entry, so a member is still selected by the name its manifest declares. The
+root's two records, the top-level `version` and the `""` entry, belong to the
+project only when the lock's own name is one the project declares; that is what
+keeps a member from rewriting the root it sits under.
+
 `uv.lock` is the same shape with the marker inverted: uv records a `source`
 for both, and the entries built from the tree are the ones marked `editable`.
 That distinction is load-bearing rather than cosmetic — a published release of

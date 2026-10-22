@@ -185,6 +185,7 @@ pub(crate) fn local_package_names<'a>(
         .into_iter()
         .filter_map(|path| {
             let read = match file_name_of(path) {
+                "package.json" => version_file::package_json_name,
                 "Cargo.toml" => version_file::cargo_package_name,
                 "pyproject.toml" => version_file::pyproject_package_name,
                 _ => return None,

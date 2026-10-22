@@ -26,18 +26,6 @@ agreed, at which point it is ranked by value.
 
 Each says what would settle it. Nothing moves up until something does.
 
-### npm workspaces
-
-A Cargo workspace's shared lock is now written per member, matched by the
-package name each manifest declares. `package-lock.json` has the same shape and
-not the same solution: its `packages` map is keyed by *path*
-(`"packages/api"`), not by package name, and a workspace member's version
-appears both there and in the member's own `package.json`.
-
-Undecided because no repository here needs it yet, and guessing at the mapping
-between a declared manifest path and a `packages` key is exactly the kind of
-inference that produced the original lock-file defect.
-
 ### Declarative version-file formats
 
 Detection is by filename. Anything else — `gradle.properties`, a `*.gemspec`, a
