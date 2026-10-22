@@ -55,18 +55,6 @@ The reason not to rush: a crate inside this repository's tree is not inert the
 way an npm or C# project is. It would need excluding from the workspace, and a
 mistake there breaks `cargo build` for the tool itself.
 
-### Inputs on the check action
-
-The composite action takes `version`, `config` and `vump-version`. Passing a
-tag now selects its own project, so a `project` input is only needed for a
-repository that verifies bare versions rather than tags.
-
-There is no `allow-nested` input either, so a repository whose `config` input
-points at a nested `vump.toml` now fails in CI. That is arguably the right
-outcome — it surfaces the layout rather than verifying quietly against the
-wrong project — but it is a consequence that was not chosen deliberately, and
-the alternative is one input.
-
 ### Pushing what a bump created, separately
 
 A bump that stops at `through = "tag"` leaves a commit and a tag to push by
