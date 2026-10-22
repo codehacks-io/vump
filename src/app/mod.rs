@@ -9,6 +9,7 @@ pub mod change;
 pub mod check;
 pub mod guided;
 pub mod init;
+pub mod push;
 pub mod set;
 pub mod status;
 pub mod update;
@@ -169,6 +170,32 @@ pub fn read_project_versions(
     Ok(versions)
 }
 
+/// The one version every file records, or the disagreement that prevents it.
+///
+/// Returns the evidence rather than an error type: the callers report a
+/// disagreement differently — a bump refuses, a push refuses, `status` renders
+/// it — and the shape of the finding is the only part they share.
+///
+/// # Errors
+///
+/// Returns every file and the version it records when they do not all agree.
+pub fn agreed_version(files: &[FileVersion]) -> Result<Version, Vec<(String, Version)>> {
+    let mut distinct: Vec<&Version> = Vec::new();
+    for file in files {
+        if !distinct.contains(&&file.version) {
+            distinct.push(&file.version);
+        }
+    }
+
+    match distinct.as_slice() {
+        [only] => Ok((*only).clone()),
+        _ => Err(files
+            .iter()
+            .map(|f| (f.path.clone(), f.version.clone()))
+            .collect()),
+    }
+}
+
 /// The package names this project's manifests declare.
 ///
 /// A shared workspace lock records every member it builds, so the entries a
@@ -185,6 +212,7 @@ pub(crate) fn local_package_names<'a>(
         .into_iter()
         .filter_map(|path| {
             let read = match file_name_of(path) {
+                "package.json" => version_file::package_json_name,
                 "Cargo.toml" => version_file::cargo_package_name,
                 "pyproject.toml" => version_file::pyproject_package_name,
                 _ => return None,

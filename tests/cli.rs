@@ -142,6 +142,46 @@ impl Fixture {
         self
     }
 
+    /// Creates a git repository with an initial commit and a bare remote.
+    ///
+    /// The remote is what makes a push assertable: the test can ask which refs
+    /// actually arrived, rather than trusting that vump named the right one.
+    /// It lives inside the work tree for want of a second directory, so it is
+    /// excluded — otherwise every bump would refuse on a dirty tree.
+    fn with_remote(self) -> Self {
+        let this = self.with_git();
+        std::fs::write(this.dir.path().join(".git/info/exclude"), "remote.git/\n")
+            .expect("cannot write git exclude");
+
+        std::fs::create_dir_all(this.dir.path().join("remote.git"))
+            .expect("cannot create remote directory");
+        let status = Command::new("git")
+            .args(["init", "-q", "--bare", "."])
+            .current_dir(this.dir.path().join("remote.git"))
+            .status()
+            .expect("cannot run git");
+        assert!(status.success(), "git init --bare failed");
+
+        this.git(&["remote", "add", "origin", "remote.git"]);
+        this.git(&["push", "-q", "-u", "origin", "HEAD"]);
+        this
+    }
+
+    /// Tags present on the fixture's remote.
+    fn remote_tags(&self) -> Vec<String> {
+        let out = Command::new("git")
+            .args(["--git-dir=remote.git", "tag"])
+            .current_dir(self.dir.path())
+            .output()
+            .expect("cannot list remote tags");
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+            .collect()
+    }
+
     /// Creates a git repository with an initial commit.
     fn with_git(self) -> Self {
         self.git(&["init", "-q", "."])
@@ -1730,6 +1770,7 @@ fn the_sandbox_projects_stay_usable() {
         "cs/multi-project",
         "cs/shared-version",
         "py/single-project",
+        "rs/workspace",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_vump"))
             .args(["status", "--allow-nested"])
@@ -1766,6 +1807,7 @@ fn no_sandbox_project_can_produce_a_release_shaped_tag() {
         ("cs/multi-project", Some("project-b")),
         ("cs/shared-version", None),
         ("py/single-project", None),
+        ("rs/workspace", None),
     ] {
         // --allow-nested is the point of this test: it asks for the tag a
         // nested configuration would create, precisely to inspect its shape.
@@ -1819,5 +1861,301 @@ fn collect_tags(value: &serde_json::Value) -> Vec<String> {
             .collect(),
         serde_json::Value::Array(items) => items.iter().flat_map(collect_tags).collect(),
         _ => Vec::new(),
+    }
+}
+
+#[test]
+fn push_sends_one_tag_and_leaves_the_others_local() {
+    // `git push --follow-tags` carries every annotated tag reachable from
+    // HEAD, which in a repository tagging several projects can publish
+    // someone else's release. End to end because the ref list is git's.
+    let fx = Fixture::new()
+        .write(
+            "vump.toml",
+            "files = [\"VERSION\"]\n\n[git]\nthrough = \"tag\"\ntag_pattern = \"api-v{new_version}\"\n",
+        )
+        .write("VERSION", "1.0.0\n")
+        .with_remote();
+    fx.git(&["tag", "-a", "other-project-v9.9.9", "-m", "another release"]);
+
+    let bump = fx.run(&["patch"]);
+    assert_eq!(bump.code, 0, "{}", bump.output());
+    assert!(
+        fx.tags().iter().any(|t| t == "api-v1.0.1"),
+        "{:?}",
+        fx.tags()
+    );
+
+    // The hint printed after tagging is the command being tested.
+    assert!(bump.stdout.contains("vump push"), "{}", bump.stdout);
+
+    let dry = fx.run(&["push", "--dry-run"]);
+    assert_eq!(dry.code, 0, "{}", dry.output());
+    assert!(dry.stdout.contains("api-v1.0.1"), "{}", dry.stdout);
+    assert!(
+        fx.remote_tags().is_empty(),
+        "a dry run pushed: {:?}",
+        fx.remote_tags()
+    );
+
+    let push = fx.run(&["push"]);
+    assert_eq!(push.code, 0, "{}", push.output());
+    assert_eq!(fx.remote_tags(), vec!["api-v1.0.1".to_owned()]);
+}
+
+#[test]
+fn push_refuses_when_no_tag_was_made() {
+    let fx = Fixture::new()
+        .write("vump.toml", "files = [\"VERSION\"]\n")
+        .write("VERSION", "1.0.0\n")
+        .with_remote();
+
+    let run = fx.run(&["push"]);
+    assert_eq!(run.code, 2, "{}", run.output());
+    assert!(run.stderr.contains("no tag"), "{}", run.stderr);
+}
+
+// ─── Every supported format, through the real binary ────────────────────────
+
+/// One supported layout: the files a project of that shape has, and what
+/// `vump.toml` declares.
+struct FormatCase {
+    /// Named in failure messages.
+    label: &'static str,
+    /// `files = [...]`, in configuration order.
+    declared: &'static [&'static str],
+    /// Files to write, each recording `1.0.0`.
+    contents: &'static [(&'static str, &'static str)],
+}
+
+/// Every format vump recognizes, as a project that has it.
+///
+/// Adding a format means adding a row. The alternative is what this replaced:
+/// building one project per ecosystem by hand and reading the result, which is
+/// neither repeatable nor run on three platforms.
+const FORMAT_CASES: &[FormatCase] = &[
+    FormatCase {
+        label: "plain text",
+        declared: &["VERSION"],
+        contents: &[("VERSION", "1.0.0\n")],
+    },
+    FormatCase {
+        label: "npm manifest",
+        declared: &["package.json"],
+        contents: &[(
+            "package.json",
+            "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\"\n}\n",
+        )],
+    },
+    FormatCase {
+        label: "npm manifest and lock",
+        declared: &["package.json", "package-lock.json"],
+        contents: &[
+            (
+                "package.json",
+                "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\"\n}\n",
+            ),
+            (
+                "package-lock.json",
+                "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"packages\": {\n    \"\": {\n      \"name\": \"demo\",\n      \"version\": \"1.0.0\"\n    }\n  }\n}\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "cargo manifest",
+        declared: &["Cargo.toml"],
+        contents: &[(
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+        )],
+    },
+    FormatCase {
+        label: "cargo manifest and lock",
+        declared: &["Cargo.toml", "Cargo.lock"],
+        contents: &[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+            (
+                "Cargo.lock",
+                "version = 3\n\n[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "python manifest",
+        declared: &["pyproject.toml"],
+        contents: &[(
+            "pyproject.toml",
+            "[project]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+        )],
+    },
+    FormatCase {
+        label: "python manifest and uv lock",
+        declared: &["pyproject.toml", "uv.lock"],
+        contents: &[
+            (
+                "pyproject.toml",
+                "[project]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            ),
+            (
+                "uv.lock",
+                "version = 1\nrevision = 3\n\n[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\nsource = { editable = \".\" }\n",
+            ),
+        ],
+    },
+    FormatCase {
+        label: "msbuild project",
+        declared: &["Demo.csproj"],
+        contents: &[(
+            "Demo.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+    FormatCase {
+        label: "msbuild shared props",
+        declared: &["Directory.Build.props"],
+        contents: &[(
+            "Directory.Build.props",
+            "<Project>\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+    FormatCase {
+        label: "msbuild shared targets",
+        declared: &["Directory.Build.targets"],
+        contents: &[(
+            "Directory.Build.targets",
+            "<Project>\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n",
+        )],
+    },
+];
+
+#[test]
+fn every_supported_format_round_trips_through_the_binary() {
+    for case in FORMAT_CASES {
+        let label = case.label;
+        let declared = case
+            .declared
+            .iter()
+            .map(|f| format!("\"{f}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut fx = Fixture::new().write("vump.toml", &format!("files = [{declared}]\n"));
+        for (name, body) in case.contents {
+            fx = fx.write(name, body);
+        }
+
+        let status = fx.run(&["status"]);
+        assert!(status.code == 0, "{label}: status: {}", status.output());
+        assert!(
+            status.stdout.contains("1.0.0"),
+            "{label}: {}",
+            status.stdout
+        );
+
+        let check = fx.run(&["check", "1.0.0"]);
+        assert_eq!(check.code, 0, "{label}: check: {}", check.output());
+
+        let bump = fx.run(&["patch", "--through", "none"]);
+        assert_eq!(bump.code, 0, "{label}: patch: {}", bump.output());
+
+        // Every declared file moved, not just the first one read.
+        for (name, _) in case.contents {
+            assert!(
+                fx.read(name).contains("1.0.1"),
+                "{label}: {name} still holds the old version:\n{}",
+                fx.read(name),
+            );
+        }
+
+        // `check` is the contract CI depends on, so it is asserted in both
+        // directions: agreeing with the new version and refusing the old. The
+        // code is 4 and not 5 — the files agree with each other and disagree
+        // with the argument, which is a mismatch rather than being out of sync.
+        assert_eq!(
+            fx.run(&["check", "1.0.1"]).code,
+            0,
+            "{label}: check after bump"
+        );
+        assert_eq!(
+            fx.run(&["check", "1.0.0"]).code,
+            4,
+            "{label}: a stale version is a mismatch",
+        );
+    }
+}
+
+#[test]
+fn an_npm_workspace_member_bumps_without_touching_the_root() {
+    // The lock keys its entries by path and the member's name lives inside the
+    // entry, so reading the root instead reported two files as disagreeing
+    // when they agreed. Asserted end to end because the pairing runs in the
+    // app layer, not in the format.
+    let fx = Fixture::new()
+        .write(
+            "vump.toml",
+            "[[project]]\nname = \"api\"\nfiles = [\"packages/api/package.json\", \"package-lock.json\"]\n",
+        )
+        .write(
+            "packages/api/package.json",
+            "{\n  \"name\": \"@acme/api\",\n  \"version\": \"2.5.0\"\n}\n",
+        )
+        .write(
+            "package-lock.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"packages\": {\n    \"\": { \"name\": \"root\", \"version\": \"1.0.0\" },\n    \"packages/api\": { \"name\": \"@acme/api\", \"version\": \"2.5.0\" }\n  }\n}\n",
+        );
+
+    let status = fx.run(&["status"]);
+    assert_eq!(status.code, 0, "{}", status.output());
+    assert!(status.stdout.contains("2.5.0"), "{}", status.stdout);
+
+    let bump = fx.run(&["patch", "--through", "none"]);
+    assert_eq!(bump.code, 0, "{}", bump.output());
+
+    let lock = fx.read("package-lock.json");
+    assert!(
+        lock.contains("\"@acme/api\", \"version\": \"2.5.1\""),
+        "{lock}"
+    );
+    assert!(lock.contains("\"root\", \"version\": \"1.0.0\""), "{lock}");
+    assert_eq!(fx.run(&["check", "2.5.1"]).code, 0);
+}
+
+#[test]
+fn every_supported_format_reaches_a_pre_release_and_back() {
+    // The pre-release path writes a version that is not three numbers, which
+    // is where a format that cannot hold one shows up — an <AssemblyVersion>
+    // takes four numeric parts and would silently truncate.
+    for case in FORMAT_CASES {
+        let label = case.label;
+        let declared = case
+            .declared
+            .iter()
+            .map(|f| format!("\"{f}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut fx = Fixture::new().write("vump.toml", &format!("files = [{declared}]\n"));
+        for (name, body) in case.contents {
+            fx = fx.write(name, body);
+        }
+
+        let alpha = fx.run(&["alpha", "--toward", "minor", "--through", "none"]);
+        assert_eq!(alpha.code, 0, "{label}: alpha: {}", alpha.output());
+        for (name, _) in case.contents {
+            assert!(
+                fx.read(name).contains("1.1.0-alpha.0"),
+                "{label}: {name}:\n{}",
+                fx.read(name),
+            );
+        }
+
+        let release = fx.run(&["release", "--through", "none"]);
+        assert_eq!(release.code, 0, "{label}: release: {}", release.output());
+        for (name, _) in case.contents {
+            assert!(fx.read(name).contains("1.1.0"), "{label}: {name}");
+        }
     }
 }

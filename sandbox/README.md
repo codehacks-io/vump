@@ -17,6 +17,7 @@ This is not test coverage. The suite in `tests/` and the fixtures in
 | [`cs/multi-project`](cs/multi-project) | Two C# projects versioned independently |
 | [`cs/shared-version`](cs/shared-version) | An executable and its library on one `Directory.Build.props` |
 | [`py/single-project`](py/single-project) | One Python project, `pyproject.toml` and `uv.lock` together |
+| [`rs/workspace`](rs/workspace) | Two crates sharing one `Cargo.lock`, released together |
 
 ## Git is off, deliberately
 
@@ -99,6 +100,31 @@ cd sandbox/py/single-project
 vump minor --allow-nested            # pyproject.toml and uv.lock
 uv run python -m demo                # demo 1.1.0
 ```
+
+A Cargo workspace shares one lock holding an entry per member, matched by the
+name each manifest declares. Declaring both manifests is what moves them as a
+unit — `--locked` is the check that vump wrote what cargo expects:
+
+```bash
+cd sandbox/rs/workspace
+vump minor --allow-nested            # both manifests and the shared lock
+cargo run --locked --bin sandbox-cli # sandbox-cli 1.1.0
+```
+
+## Checking every ecosystem at once
+
+The test suite proves vump writes the bytes it meant to. Only each ecosystem's
+own toolchain can say whether those bytes reach a running program:
+
+```bash
+./scripts/sandbox-smoke.sh
+```
+
+It bumps every project with the vump in this working tree, asks node, dotnet,
+uv and cargo what version they build, and reverts afterwards. A toolchain that
+is not installed is skipped rather than failed. It is deliberately not part of
+`cargo test`, which would need all four on every CI runner to test somebody
+else's tool.
 
 ## Putting it back
 

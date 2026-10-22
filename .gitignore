@@ -15,3 +15,4 @@ sandbox/**/obj/
 sandbox/**/node_modules/
 sandbox/**/.venv/
 sandbox/**/__pycache__/
+sandbox/**/target/

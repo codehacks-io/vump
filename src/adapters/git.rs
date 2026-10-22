@@ -94,6 +94,14 @@ impl Vcs for GitCli {
         Ok(())
     }
 
+    fn has_tag(&self, name: &str) -> Result<bool, VcsError> {
+        // `tag --list <name>` prints the name when it exists and nothing when
+        // it does not, succeeding either way — unlike `rev-parse`, which fails
+        // and would be indistinguishable from the repository being unreadable.
+        let out = self.run("tag", &["tag", "--list", name])?;
+        Ok(!out.trim().is_empty())
+    }
+
     fn push(&self, tag: Option<&str>) -> Result<(), VcsError> {
         self.run("push", &["push"])?;
         if let Some(tag) = tag {

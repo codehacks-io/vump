@@ -1,0 +1,8 @@
+[package]
+name = "sandbox-cli"
+version = "1.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+sandbox-engine = { path = "../engine" }

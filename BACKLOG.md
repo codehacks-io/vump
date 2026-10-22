@@ -26,18 +26,6 @@ agreed, at which point it is ranked by value.
 
 Each says what would settle it. Nothing moves up until something does.
 
-### npm workspaces
-
-A Cargo workspace's shared lock is now written per member, matched by the
-package name each manifest declares. `package-lock.json` has the same shape and
-not the same solution: its `packages` map is keyed by *path*
-(`"packages/api"`), not by package name, and a workspace member's version
-appears both there and in the member's own `package.json`.
-
-Undecided because no repository here needs it yet, and guessing at the mapping
-between a declared manifest path and a `packages` key is exactly the kind of
-inference that produced the original lock-file defect.
-
 ### Declarative version-file formats
 
 Detection is by filename. Anything else — `gradle.properties`, a `*.gemspec`, a
@@ -50,55 +38,6 @@ costing more than a day. A spec would change the configuration schema
 permanently to avoid work that keeps turning out to be small.
 
 What would settle it: a format someone needs that is not worth adding built-in.
-
-### A Rust project in the sandbox
-
-The sandbox covers npm and C#. Rust is missing, and the argument at the time
-was that this repository is itself the Cargo example — it tracks `Cargo.toml`
-and `Cargo.lock` and is exercised on every release.
-
-That argument is weaker than it looked. The repository demonstrates a
-single-crate project only, so the shape actually worth showing by hand — a
-workspace, where the lock holds one entry per member and a project writes only
-the entries its own manifests name — has no worked example anywhere outside the
-test fixtures.
-
-The reason not to rush: a crate inside this repository's tree is not inert the
-way an npm or C# project is. It would need excluding from the workspace, and a
-mistake there breaks `cargo build` for the tool itself.
-
-### Inputs on the check action
-
-The composite action takes `version`, `config` and `vump-version`. Passing a
-tag now selects its own project, so a `project` input is only needed for a
-repository that verifies bare versions rather than tags.
-
-There is no `allow-nested` input either, so a repository whose `config` input
-points at a nested `vump.toml` now fails in CI. That is arguably the right
-outcome — it surfaces the layout rather than verifying quietly against the
-wrong project — but it is a consequence that was not chosen deliberately, and
-the alternative is one input.
-
-### Pushing what a bump created, separately
-
-A bump that stops at `through = "tag"` leaves a commit and a tag to push by
-hand. `git push --follow-tags` does it, but pushes *every* annotated tag
-reachable — in a monorepo that can publish another project's tag that happened
-to be sitting unpushed. vump's own push names the single ref it created, which
-is strictly narrower.
-
-A `vump push` would close that gap: read the current version, render the
-project's tag pattern, push `HEAD` and that one tag. It needs no stored state,
-since both are derivable from the files and the pattern.
-
-Undecided because the repository that would feel it — a monorepo with several
-projects tagged independently — does not exist here yet, and the single-project
-case is served by `git push --follow-tags` today.
-
-Not to be confused with a prompt between tagging and pushing, which was
-considered and rejected: a blocking prompt owns the terminal, so it cannot
-deliver the inspection it appears to offer. Stopping at `tag` and looking
-around with a free shell is strictly better.
 
 ### Deciding the bump from commit messages
 

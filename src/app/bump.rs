@@ -74,26 +74,7 @@ pub fn plan_from(
     let from = if let Some(base) = base {
         base
     } else {
-        let mut distinct: Vec<&Version> = Vec::new();
-        for file in &files {
-            if !distinct.contains(&&file.version) {
-                distinct.push(&file.version);
-            }
-        }
-
-        match distinct.as_slice() {
-            [only] => (*only).clone(),
-            // A source of truth contradicting itself is not something to guess
-            // about. `vump set` is the deliberate repair.
-            _ => {
-                return Err(ChangeError::OutOfSync {
-                    found: files
-                        .iter()
-                        .map(|f| (f.path.clone(), f.version.clone()))
-                        .collect(),
-                });
-            }
-        }
+        crate::app::agreed_version(&files).map_err(|found| ChangeError::OutOfSync { found })?
     };
 
     let target = transition_apply(&from, transition)?;
