@@ -1,0 +1,43 @@
+# Security updates are separate from this file and always on: they open a pull
+# request the moment an advisory lands and ignore the cooldown below. This file
+# adds routine version updates, which are the slower, calmer half.
+version: 2
+
+updates:
+  # Third-party actions run inside release.yml next to the signing secrets, so
+  # a compromised action is the most damaging dependency this repository has.
+  # The actions are pinned to commit SHAs; Dependabot moves the SHA and the
+  # version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    # A release published today may be one its maintainer's account was used to
+    # push a minute ago. Waiting a week costs nothing for routine bumps and
+    # lets a compromised release be yanked before it reaches this repository.
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        update-types: [minor, patch]
+
+  # pnpm is Dependabot's `npm` ecosystem.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      website:
+        update-types: [minor, patch]
