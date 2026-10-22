@@ -524,7 +524,7 @@ mod tests {
             .iter()
             .filter(|o| !o.result.contains('-'))
             .collect::<Vec<_>>();
-        assert!(!stable.is_empty());
+        assert_ne!(stable.len(), 0);
         assert!(
             stable
                 .iter()

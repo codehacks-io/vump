@@ -172,8 +172,8 @@ mod tests {
 
     #[test]
     fn a_clean_tree_yields_nothing() {
-        assert!(parse_porcelain("").is_empty());
-        assert!(parse_porcelain("\n").is_empty());
+        assert_eq!(parse_porcelain(""), Vec::<String>::new());
+        assert_eq!(parse_porcelain("\n"), Vec::<String>::new());
     }
 
     #[test]

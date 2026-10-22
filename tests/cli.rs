@@ -428,7 +428,7 @@ fn a_configured_step_can_be_lowered_for_one_run() {
     assert_eq!(fx.run(&["patch", "--through", "none"]).code, 0);
     assert_eq!(fx.read("VERSION"), "1.2.4\n");
 
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
@@ -465,7 +465,7 @@ fn a_repository_that_declares_no_git_work_gets_none() {
     assert_eq!(fx.run(&["patch"]).code, 0);
     assert_eq!(fx.read("VERSION"), "1.2.4\n");
 
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 /// A repository whose own configuration is shadowed by one in `inner/`.
@@ -502,7 +502,7 @@ fn a_nested_configuration_may_not_be_written_from_without_acknowledgement() {
 
     // Refusing must leave everything as it was.
     assert_eq!(fx.read("inner/VERSION"), "9.9.9\n");
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
@@ -699,7 +699,7 @@ fn setting_the_recorded_version_is_a_no_op_not_a_failure() {
     let run = fx.run(&["set", "1.2.3"]);
     assert_eq!(run.code, 0, "{}", run.output());
     assert!(run.stdout.contains("nothing to do"), "{}", run.stdout);
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
@@ -1080,7 +1080,7 @@ fn an_undeclared_lock_stops_the_run_before_anything_happens() {
 
     // Refused at planning time, so there is no commit or tag to undo.
     assert!(fx.read("Cargo.toml").contains("1.2.3"));
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
     assert_eq!(fx.porcelain(), "");
 }
 
@@ -1164,7 +1164,7 @@ fn an_undeclared_npm_lock_stops_the_run_before_anything_happens() {
         "{}",
         run.output()
     );
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
     assert_eq!(fx.porcelain(), "");
 }
 
@@ -1588,7 +1588,7 @@ fn a_stable_release_from_an_unlisted_branch_is_refused() {
     // Refusing must leave everything as it was, files included: the check runs
     // before the first write, not after it.
     assert_eq!(fx.read("VERSION"), "1.2.3\n");
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
@@ -1670,7 +1670,7 @@ fn writing_files_without_git_is_not_governed() {
     let run = fx.run(&["patch", "--through", "none"]);
     assert_eq!(run.code, 0, "{}", run.output());
     assert_eq!(fx.read("VERSION"), "1.2.4\n");
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
@@ -1681,7 +1681,7 @@ fn a_detached_head_is_refused_where_a_policy_exists() {
     let run = fx.run(&["patch", "--through", "tag"]);
     assert_eq!(run.code, 3, "{}", run.output());
     assert!(run.stderr.contains("detached"), "{}", run.stderr);
-    assert!(fx.tags().is_empty());
+    assert_eq!(fx.tags(), Vec::<String>::new());
 }
 
 #[test]
