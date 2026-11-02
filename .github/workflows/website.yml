@@ -26,7 +26,7 @@ jobs:
         with:
           # Reads the pnpm version from the site's own package.json; the
           # repository root has none.
-          package-json-file: website/package.json
+          working-directory: website
           install: false
 
       - uses: actions/setup-node@v7

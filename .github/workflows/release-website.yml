@@ -54,7 +54,7 @@ jobs:
           # so local development and this job cannot drift apart. There is no
           # package.json at the repository root to fall back on — this is a Rust
           # project with a site in a subdirectory.
-          package-json-file: website/package.json
+          working-directory: website
           install: false
 
       - uses: actions/setup-node@v7
