@@ -219,6 +219,13 @@ pub trait Vcs {
     /// of that name already exists.
     fn tag(&self, name: &str, annotation: Option<&Annotation>) -> Result<(), VcsError>;
 
+    /// Whether a tag of this name exists locally.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VcsError`] when the repository cannot be inspected.
+    fn has_tag(&self, name: &str) -> Result<bool, VcsError>;
+
     /// Pushes the current branch, and `tag` when one is given.
     ///
     /// # Errors

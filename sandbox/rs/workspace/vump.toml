@@ -1,0 +1,20 @@
+# Two crates in one workspace, released together as a single version.
+#
+# The workspace shares one Cargo.lock holding an entry per member, matched by
+# the name each manifest declares — so a project writes only the entries its
+# own manifests name, and members nobody declared are left alone. Declaring
+# every manifest here is what makes these two move as a unit.
+#
+# Git is off throughout the sandbox, and the tag pattern cannot be mistaken
+# for vump's own — see ../../npm/single-project/vump.toml.
+
+files = [
+  "crates/engine/Cargo.toml",
+  "crates/cli/Cargo.toml",
+  "Cargo.lock",
+]
+
+[git]
+through = "none"
+tag_pattern = "sandbox-rs-v{new_version}"
+commit_message = "chore(sandbox): bump rs/workspace to {new_version}"

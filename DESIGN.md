@@ -150,6 +150,13 @@ In `Cargo.lock` the entries that belong to the repository are the
 everything it fetched. A single-crate repository has one, and it needs no
 naming.
 
+`package-lock.json` keys its entries by *path* rather than by name — the root
+is `""` and a member is `"packages/api"` — but records the name inside each
+entry, so a member is still selected by the name its manifest declares. The
+root's two records, the top-level `version` and the `""` entry, belong to the
+project only when the lock's own name is one the project declares; that is what
+keeps a member from rewriting the root it sits under.
+
 `uv.lock` is the same shape with the marker inverted: uv records a `source`
 for both, and the entries built from the tree are the ones marked `editable`.
 That distinction is load-bearing rather than cosmetic — a published release of
@@ -519,6 +526,7 @@ vump                      Interactive bump
 vump patch|minor|major    Bump a stable version
 vump alpha|beta|rc        Start or advance a pre-release (--toward required from stable)
 vump release              Drop the pre-release suffix
+vump push                 Push the commit and tag a bump already created
 vump set <version>        Write an exact version to every tracked file
 vump check <version>      Verify tracked files match the given version
 vump status               Report current versions and sync state
@@ -532,7 +540,7 @@ vump self list            List published releases
 
 | Flag                | Applies to      | Description                                    |
 | ------------------- | --------------- | ---------------------------------------------- |
-| `--dry-run`         | bump commands   | Compute and report the plan, write nothing     |
+| `--dry-run`         | bump commands, `push` | Compute and report the plan, write nothing |
 | `--toward <bump>`   | pre-release     | Stable release the pre-release leads to        |
 | `--project <name>`  | all             | Select a project in a multi-project repository |
 | `--through <step>`  | bump commands   | How far to carry the release: `none`, `commit`, `tag`, `push` |
@@ -555,6 +563,19 @@ mean different things in different columns above and never appear together in
 one invocation. `--to` takes a version when updating the binary; a bump
 command's `--toward` takes a bump name. Reading a name as reserved across the
 whole surface is a mistake — the "Applies to" column is what settles it.
+
+**`vump push` finishes a run that stopped at `tag`.** It renders the tag from
+the version the files already record and the project's own pattern — the same
+derivation the bump used to create it — so it stores nothing and cannot name a
+different ref than the one that exists. It refuses when that tag does not
+exist rather than pushing the branch alone, which would look like the job was
+done. The branch policy is checked here as well: a bump stopping at `tag` was
+never checked against it, because nothing had left the machine yet.
+
+The alternative it replaces is `git push --follow-tags`, which pushes every
+annotated tag reachable from `HEAD` — in a repository tagging several projects
+independently, that publishes whichever other project's tag was sitting
+unpushed.
 
 Only files declared in configuration are staged. If the run reaches a commit, a
 dirty working tree is a hard failure — a version bump must not sweep unrelated

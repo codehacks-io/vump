@@ -9,6 +9,10 @@ inputs:
     description: 'Path to vump.toml, relative to the repository root. The action runs vump from the directory containing this file.'
     required: false
     default: 'vump.toml'
+  project:
+    description: 'Project to verify, in a repository declaring several. Only needed when `version` is a bare version: a tag selects its own project through that project''s tag_pattern. There is deliberately no allow-nested input — a vump.toml nested below another verifies the wrong project, and this action failing is that being caught rather than a limitation.'
+    required: false
+    default: ''
   vump-version:
     description: 'vump release tag to download (e.g. v0.2.0). Defaults to "latest".'
     required: false
@@ -25,9 +29,23 @@ runs:
 
     - name: Run vump check
       shell: bash
+      # Inputs reach the script through the environment rather than being
+      # interpolated into it: an expression expanded into a shell line is
+      # expanded before bash sees it, so a value containing shell syntax would
+      # run as part of this step.
+      env:
+        VUMP_VERSION_TO_CHECK: ${{ inputs.version }}
+        VUMP_CONFIG: ${{ inputs.config }}
+        VUMP_PROJECT: ${{ inputs.project }}
+        VUMP_WORKSPACE: ${{ github.workspace }}
       run: |
-        # cd to the directory containing vump.toml so it is found automatically.
-        CONFIG_DIR=$(dirname "${{ github.workspace }}/${{ inputs.config }}")
-        cd "$CONFIG_DIR"
-        "$VUMP_BIN" check "${{ inputs.version }}"
+        set -euo pipefail
 
+        # cd to the directory containing vump.toml so it is found automatically.
+        cd "$(dirname "$VUMP_WORKSPACE/$VUMP_CONFIG")"
+
+        if [ -n "$VUMP_PROJECT" ]; then
+          "$VUMP_BIN" check "$VUMP_VERSION_TO_CHECK" --project "$VUMP_PROJECT"
+        else
+          "$VUMP_BIN" check "$VUMP_VERSION_TO_CHECK"
+        fi

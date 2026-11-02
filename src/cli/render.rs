@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use crate::app::bump::BumpPlan;
 use crate::app::change::{BranchCheck, ChangeSet, OffBranch, Outcome, TagPlan};
 use crate::app::check::CheckReport;
+use crate::app::push::Pushed;
 use crate::app::status::ProjectStatus;
 use crate::app::update::{Channel, Listing, Release, UpdateOutcome};
 use crate::cli::exit::Exit;
@@ -344,9 +345,15 @@ fn tag_note(tag: &TagPlan) -> &'static str {
     }
 }
 
+/// The command that finishes a run which stopped short of pushing.
+///
+/// `vump push` where a tag was made: it derives the same single ref from the
+/// files and the pattern, so the suggestion cannot name the wrong one, and it
+/// is shorter than the two git commands it replaces. Deliberately not
+/// `--follow-tags`, which would carry every other reachable annotated tag.
 fn push_command(tag: Option<&str>) -> String {
     match tag {
-        Some(tag) => format!("git push && git push origin {tag}"),
+        Some(_) => "vump push".to_owned(),
         None => "git push".to_owned(),
     }
 }
@@ -547,5 +554,24 @@ fn print(value: &Value) {
         // Serializing a value built from `json!` cannot fail in practice; if it
         // somehow does, say so rather than exiting silently.
         Err(e) => eprintln!("error: cannot render JSON output: {e}"),
+    }
+}
+
+/// Reports the commit and tag a push carried, or would carry.
+pub fn pushed(pushed: &Pushed, dry_run: bool, json: bool) {
+    if json {
+        print(&serde_json::json!({
+            "action": if dry_run { "push_plan" } else { "pushed" },
+            "version": pushed.version.to_string(),
+            "tag": pushed.tag,
+        }));
+        return;
+    }
+
+    if dry_run {
+        println!("DRY  would push HEAD and {}", pushed.tag);
+        println!("\nNothing was pushed.");
+    } else {
+        println!("OK   pushed HEAD and {}", pushed.tag);
     }
 }

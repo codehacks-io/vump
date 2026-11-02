@@ -60,6 +60,12 @@ cargo test
 CI runs exactly this on Linux, macOS and Windows. Running it locally first is
 much faster than waiting for a runner to report the same thing.
 
+`./scripts/sandbox-smoke.sh` is the separate check: it bumps every sandbox and
+asks each ecosystem's own toolchain what version it builds, which is the one
+thing the suite cannot answer. It needs node, dotnet, uv and cargo, skips what
+is missing, and is not part of CI for that reason — run it when a format's
+reading or writing changed.
+
 ## Working agreement
 
 - **Open a pull request when a coherent set of work is done, then pause for

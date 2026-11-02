@@ -124,6 +124,18 @@ enum Command {
         git: GitArgs,
     },
 
+    /// Push the commit and the one tag a bump already created.
+    ///
+    /// For finishing a bump that stopped at `tag`. `git push --follow-tags`
+    /// does the same job but pushes every annotated tag reachable from `HEAD`,
+    /// which in a repository tagging several projects independently can
+    /// publish another project's release. This names one ref.
+    Push {
+        /// Report what would be pushed without pushing it.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Report the versions currently recorded, and whether they agree.
     Status,
 
@@ -448,6 +460,7 @@ fn execute(cli: &Cli) -> Result<Exit, CliError> {
             dry_run,
             git,
         } => set(&ctx, version, *dry_run, git),
+        Command::Push { dry_run } => push(&ctx, *dry_run),
         Command::Status => status(&ctx),
         // Handled before configuration discovery.
         Command::Init { .. } | Command::SelfCmd(_) => Ok(Exit::Success),
@@ -742,6 +755,31 @@ fn check(ctx: &Context, version: &str) -> Result<Exit, CliError> {
     })
 }
 
+/// Pushes the commit and the one tag a bump already created.
+fn push(ctx: &Context, dry_run: bool) -> Result<Exit, CliError> {
+    let project = ctx.config.select(ctx.project.as_deref())?;
+
+    let vcs = GitCli::new(&ctx.root);
+    let planned = app::push::plan(&ctx.fs, &vcs, &ctx.root, &ctx.config, project)?;
+
+    // The branch policy governs this as it governs a bump. A bump that stopped
+    // at `tag` was never checked against it — nothing had left the machine —
+    // and this is the step that would put the tag on the remote, so the check
+    // belongs here too, against the version already recorded.
+    if let Some(off) =
+        app::change::check_branch(&vcs, &planned.version, true, &ctx.config.git, ctx.branch)?
+    {
+        render::off_branch(&off, ctx.branch);
+    }
+
+    if !dry_run {
+        app::push::push(&ctx.fs, &vcs, &ctx.root, &ctx.config, project)?;
+    }
+
+    render::pushed(&planned, dry_run, ctx.json);
+    Ok(Exit::Success)
+}
+
 fn status(ctx: &Context) -> Result<Exit, CliError> {
     // Selecting a project narrows the report; without one, every declared
     // project is reported.
@@ -812,6 +850,9 @@ enum CliError {
     Change(#[from] ChangeError),
 
     #[error("{0}")]
+    Push(#[from] app::push::PushError),
+
+    #[error("{0}")]
     Transition(#[from] TransitionError),
 
     #[error("{0}")]
@@ -849,6 +890,15 @@ impl CliError {
             | Self::UnrecognizedTag { .. } => Exit::Usage,
             Self::Config(_) => Exit::Config,
             Self::App(app) => app_exit(app),
+            Self::Push(push) => match push {
+                app::push::PushError::Config(_) => Exit::Config,
+                app::push::PushError::App(app) => app_exit(app),
+                app::push::PushError::OutOfSync { .. } => Exit::OutOfSync,
+                // Asking to push a tag that was never made is a mistake in the
+                // command, not a failure of the repository.
+                app::push::PushError::NoTag { .. } => Exit::Usage,
+                app::push::PushError::Vcs(_) => Exit::Git,
+            },
             Self::Transition(_) => Exit::InvalidTransition,
             // Updating touches the installation rather than a project, so
             // nothing about it maps onto the project-shaped codes. Neither does
