@@ -1,5 +1,15 @@
-# Build output
-/target/
+# What building something produces, wherever it is built: the sandbox, the
+# website, and the project files kept as test fixtures. Scoped by what the
+# output is rather than by where it sits, because the same output appears
+# wherever someone runs the tool that makes it.
+**/target/
+**/obj/
+**/bin/
+# Cargo's convention for extra binaries, which the rule above would hide.
+!src/bin/
+**/node_modules/
+**/.venv/
+**/__pycache__/
 dist/
 
 .DS_Store
@@ -7,12 +17,3 @@ dist/
 # Personal, machine-local agent settings
 .claude/settings.local.json
 .claude/launch.json
-
-# Sandbox build output. The projects are committed; what building them
-# produces is not.
-sandbox/**/bin/
-sandbox/**/obj/
-sandbox/**/node_modules/
-sandbox/**/.venv/
-sandbox/**/__pycache__/
-sandbox/**/target/
